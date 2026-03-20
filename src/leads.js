@@ -1,8 +1,11 @@
 const KEY = 'remontpro_leads';
 
 export function getLeads() {
-  try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
-  catch { return []; }
+  try {
+    return JSON.parse(localStorage.getItem(KEY) || '[]');
+  } catch {
+    return [];
+  }
 }
 
 export function saveLead(lead) {
@@ -14,10 +17,11 @@ export function saveLead(lead) {
     note: '',
     createdAt: new Date().toISOString(),
   };
+
   leads.unshift(entry);
   localStorage.setItem(KEY, JSON.stringify(leads));
 
-  if (Notification.permission === 'granted') {
+  if ('Notification' in window && Notification.permission === 'granted') {
     new Notification('Новая заявка!', {
       body: `${lead.name} — ${lead.phone}`,
       icon: '/favicon.svg',

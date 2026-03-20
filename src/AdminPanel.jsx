@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft, Trash2, MessageSquare, Phone, Clock, Search,
-  Bell, BellOff, ChevronDown, Eye, Users, AlertCircle, CheckCircle2,
+  Bell, BellOff, ChevronDown, Users, AlertCircle, CheckCircle2,
   Filter, Download
 } from 'lucide-react';
 import { getLeads, updateLead, deleteLead, requestNotifications } from './leads';
@@ -23,11 +23,13 @@ function Badge({ status }) {
   );
 }
 
-function StatCard({ icon: Icon, label, value, color }) {
+function StatCard({ icon, label, value, color }) {
+  const IconComponent = icon;
+
   return (
     <div className="bg-anthracite-900 border border-anthracite-700/50 rounded-xl p-5 flex items-center gap-4">
       <div className={`w-11 h-11 rounded-xl flex items-center justify-center ${color}`}>
-        <Icon size={20} />
+        <IconComponent size={20} />
       </div>
       <div>
         <p className="text-2xl font-bold text-white">{value}</p>
@@ -38,17 +40,15 @@ function StatCard({ icon: Icon, label, value, color }) {
 }
 
 export default function AdminPanel({ onBack }) {
-  const [leads, setLeads] = useState([]);
+  const [leads, setLeads] = useState(() => getLeads());
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
-  const [notifEnabled, setNotifEnabled] = useState(false);
+  const [notifEnabled, setNotifEnabled] = useState(() => 'Notification' in window && Notification.permission === 'granted');
 
   const refresh = useCallback(() => setLeads(getLeads()), []);
 
   useEffect(() => {
-    refresh();
-    setNotifEnabled('Notification' in window && Notification.permission === 'granted');
     const id = setInterval(refresh, 3000);
     return () => clearInterval(id);
   }, [refresh]);
