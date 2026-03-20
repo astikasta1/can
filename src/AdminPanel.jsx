@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import {
   ArrowLeft, Trash2, MessageSquare, Phone, Clock, Search,
   Bell, BellOff, ChevronDown, Users, AlertCircle, CheckCircle2,
-  Filter, Download
+  Filter, Download, Lock, LogOut, ShieldCheck
 } from 'lucide-react';
 import { getLeads, updateLead, deleteLead, requestNotifications } from './leads';
 
@@ -12,6 +12,8 @@ const STATUS = {
   done: { label: 'Завершена', color: 'bg-green-500', text: 'text-green-400', bg: 'bg-green-500/10 border-green-500/30' },
   rejected: { label: 'Отклонена', color: 'bg-red-500', text: 'text-red-400', bg: 'bg-red-500/10 border-red-500/30' },
 };
+
+const ADMIN_SESSION_KEY = 'remontpro_admin_session';
 
 function Badge({ status }) {
   const s = STATUS[status] || STATUS.new;
@@ -39,7 +41,88 @@ function StatCard({ icon, label, value, color }) {
   );
 }
 
+function hasAdminSession() {
+  try {
+    return Boolean(localStorage.getItem(ADMIN_SESSION_KEY));
+  } catch {
+    return false;
+  }
+}
+
+function saveAdminSession(login) {
+  localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ login, createdAt: new Date().toISOString() }));
+}
+
+function clearAdminSession() {
+  localStorage.removeItem(ADMIN_SESSION_KEY);
+}
+
+function AdminLogin({ credentials, error, onChange, onSubmit, onBack }) {
+  return (
+    <div className="min-h-screen bg-anthracite-950 text-gray-200 px-4 py-10">
+      <div className="max-w-md mx-auto">
+        <button onClick={onBack} className="inline-flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm mb-8">
+          <ArrowLeft size={18} /> На сайт
+        </button>
+
+        <div className="rounded-3xl border border-anthracite-700/50 bg-anthracite-900 p-6 md:p-8 shadow-2xl shadow-black/20">
+          <div className="w-14 h-14 rounded-2xl bg-accent-500/10 text-accent-400 flex items-center justify-center mb-5">
+            <ShieldCheck size={26} />
+          </div>
+
+          <p className="text-sm uppercase tracking-[0.24em] text-accent-400 mb-3">Админ-панель</p>
+          <h1 className="text-3xl font-extrabold text-white mb-3">Вход в CRM</h1>
+          <p className="text-sm text-gray-400 leading-relaxed mb-6">
+            Введите логин и пароль, чтобы открыть список заявок. Если поля пустые, система покажет понятную ошибку вместо пустого экрана.
+          </p>
+
+          <form onSubmit={onSubmit} className="space-y-4">
+            <div>
+              <label htmlFor="admin-login" className="block text-sm font-medium text-gray-300 mb-2">Логин</label>
+              <input
+                id="admin-login"
+                type="text"
+                autoComplete="username"
+                value={credentials.login}
+                onChange={e => onChange('login', e.target.value)}
+                placeholder="Введите логин"
+                className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors"
+              />
+            </div>
+
+            <div>
+              <label htmlFor="admin-password" className="block text-sm font-medium text-gray-300 mb-2">Пароль</label>
+              <input
+                id="admin-password"
+                type="password"
+                autoComplete="current-password"
+                value={credentials.password}
+                onChange={e => onChange('password', e.target.value)}
+                placeholder="Введите пароль"
+                className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-4 py-3 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors"
+              />
+            </div>
+
+            {error && (
+              <div className="rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-3 text-sm text-red-300">
+                {error}
+              </div>
+            )}
+
+            <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold py-3.5 rounded-xl transition-colors">
+              <Lock size={18} /> Войти
+            </button>
+          </form>
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function AdminPanel({ onBack }) {
+  const [isAuthorized, setIsAuthorized] = useState(() => hasAdminSession());
+  const [credentials, setCredentials] = useState({ login: '', password: '' });
+  const [authError, setAuthError] = useState('');
   const [leads, setLeads] = useState(() => getLeads());
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -49,9 +132,47 @@ export default function AdminPanel({ onBack }) {
   const refresh = useCallback(() => setLeads(getLeads()), []);
 
   useEffect(() => {
+    if (!isAuthorized) return undefined;
+
     const id = setInterval(refresh, 3000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [isAuthorized, refresh]);
+
+  const handleCredentials = (field, value) => {
+    setAuthError('');
+    setCredentials(prev => ({ ...prev, [field]: value }));
+  };
+
+  const handleLogin = (e) => {
+    e.preventDefault();
+
+    const login = credentials.login.trim();
+    const password = credentials.password.trim();
+
+    if (login.length < 3) {
+      setAuthError('Введите логин минимум из 3 символов.');
+      return;
+    }
+
+    if (password.length < 4) {
+      setAuthError('Введите пароль минимум из 4 символов.');
+      return;
+    }
+
+    saveAdminSession(login);
+    setIsAuthorized(true);
+    setAuthError('');
+    setCredentials({ login: '', password: '' });
+  };
+
+  const handleLogout = () => {
+    clearAdminSession();
+    setIsAuthorized(false);
+    setExpandedId(null);
+    setSearch('');
+    setFilterStatus('all');
+    setCredentials({ login: '', password: '' });
+  };
 
   const handleStatus = (id, status) => {
     updateLead(id, { status });
@@ -71,7 +192,11 @@ export default function AdminPanel({ onBack }) {
 
   const enableNotif = () => {
     requestNotifications();
-    setTimeout(() => setNotifEnabled(Notification.permission === 'granted'), 1000);
+    setTimeout(() => {
+      if ('Notification' in window) {
+        setNotifEnabled(Notification.permission === 'granted');
+      }
+    }, 1000);
   };
 
   const exportCSV = () => {
@@ -102,15 +227,26 @@ export default function AdminPanel({ onBack }) {
     done: leads.filter(l => l.status === 'done').length,
   };
 
+  if (!isAuthorized) {
+    return (
+      <AdminLogin
+        credentials={credentials}
+        error={authError}
+        onChange={handleCredentials}
+        onSubmit={handleLogin}
+        onBack={onBack}
+      />
+    );
+  }
+
   return (
     <div className="min-h-screen bg-anthracite-950 text-gray-200">
-      {/* header */}
       <div className="sticky top-0 z-50 bg-anthracite-950/80 backdrop-blur-lg border-b border-anthracite-700/50">
-        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 h-16">
+        <div className="max-w-6xl mx-auto flex items-center justify-between px-4 md:px-8 h-16 gap-3">
           <button onClick={onBack} className="flex items-center gap-2 text-gray-400 hover:text-white transition-colors text-sm">
             <ArrowLeft size={18} /> На сайт
           </button>
-          <h1 className="text-lg font-extrabold text-white">
+          <h1 className="text-lg font-extrabold text-white text-center flex-1">
             Ремонт<span className="text-accent-500">Про</span> <span className="text-gray-500 font-normal text-sm ml-2">CRM</span>
           </h1>
           <div className="flex items-center gap-3">
@@ -122,12 +258,15 @@ export default function AdminPanel({ onBack }) {
               className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${notifEnabled ? 'border-green-500/50 text-green-400' : 'border-anthracite-700/50 text-gray-400 hover:text-accent-400 hover:border-accent-500/50'}`}>
               {notifEnabled ? <Bell size={16} /> : <BellOff size={16} />}
             </button>
+            <button onClick={handleLogout} title="Выйти"
+              className="w-9 h-9 rounded-lg border border-anthracite-700/50 flex items-center justify-center text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-colors">
+              <LogOut size={16} />
+            </button>
           </div>
         </div>
       </div>
 
       <div className="max-w-6xl mx-auto px-4 md:px-8 py-8">
-        {/* stats */}
         <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
           <StatCard icon={Users} label="Всего заявок" value={counts.total} color="bg-accent-500/10 text-accent-400" />
           <StatCard icon={AlertCircle} label="Новые" value={counts.new} color="bg-blue-500/10 text-blue-400" />
@@ -135,7 +274,6 @@ export default function AdminPanel({ onBack }) {
           <StatCard icon={CheckCircle2} label="Завершено" value={counts.done} color="bg-green-500/10 text-green-400" />
         </div>
 
-        {/* filters */}
         <div className="flex flex-col sm:flex-row gap-3 mb-6">
           <div className="relative flex-1">
             <Search size={16} className="absolute left-3.5 top-1/2 -translate-y-1/2 text-gray-500" />
@@ -156,7 +294,6 @@ export default function AdminPanel({ onBack }) {
           </div>
         </div>
 
-        {/* leads list */}
         {filtered.length === 0 ? (
           <div className="text-center py-20">
             <MessageSquare size={48} className="text-anthracite-700 mx-auto mb-4" />
@@ -174,7 +311,6 @@ export default function AdminPanel({ onBack }) {
               return (
                 <div key={lead.id}
                   className={`bg-anthracite-900 border rounded-xl transition-all ${expanded ? 'border-accent-500/50 shadow-lg shadow-accent-500/5' : 'border-anthracite-700/50 hover:border-anthracite-600'}`}>
-                  {/* row */}
                   <button onClick={() => setExpandedId(expanded ? null : lead.id)}
                     className="w-full flex items-center gap-4 p-4 text-left">
                     <div className={`w-10 h-10 rounded-full flex items-center justify-center shrink-0 text-sm font-bold ${lead.status === 'new' ? 'bg-blue-500/20 text-blue-400' : 'bg-anthracite-800 text-gray-400'}`}>
@@ -193,7 +329,6 @@ export default function AdminPanel({ onBack }) {
                     <ChevronDown size={16} className={`text-gray-500 transition-transform ${expanded ? 'rotate-180' : ''}`} />
                   </button>
 
-                  {/* expanded details */}
                   {expanded && (
                     <div className="px-4 pb-4 pt-0 border-t border-anthracite-700/30 space-y-4">
                       <div className="flex flex-wrap gap-4 pt-4 text-sm">
@@ -213,7 +348,6 @@ export default function AdminPanel({ onBack }) {
                         )}
                       </div>
 
-                      {/* status buttons */}
                       <div>
                         <span className="text-gray-500 text-xs block mb-2">Статус</span>
                         <div className="flex flex-wrap gap-2">
@@ -226,7 +360,6 @@ export default function AdminPanel({ onBack }) {
                         </div>
                       </div>
 
-                      {/* note */}
                       <div>
                         <span className="text-gray-500 text-xs block mb-2">Заметка</span>
                         <textarea
@@ -237,7 +370,6 @@ export default function AdminPanel({ onBack }) {
                           className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-4 py-3 text-sm text-white placeholder-gray-600 focus:outline-none focus:border-accent-500 transition-colors resize-none" />
                       </div>
 
-                      {/* actions */}
                       <div className="flex gap-2 justify-end">
                         <a href={`tel:${lead.phone}`}
                           className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg bg-accent-500 hover:bg-accent-600 text-white text-xs font-semibold transition-colors">
