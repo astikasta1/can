@@ -1,10 +1,10 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowLeft, Trash2, MessageSquare, Phone, Clock, Search,
-  Bell, BellOff, ChevronDown, Eye, Users, AlertCircle, CheckCircle2,
-  Filter, Download
+  Bell, BellOff, ChevronDown, Users, AlertCircle, CheckCircle2,
+  Filter, Download, LogOut
 } from 'lucide-react';
-import { getLeads, updateLead, deleteLead, requestNotifications } from './leads';
+import { getLeads, updateLead, deleteLead, subscribeToLeads, requestNotifications } from './leads';
 
 const STATUS = {
   new: { label: 'Новая', color: 'bg-blue-500', text: 'text-blue-400', bg: 'bg-blue-500/10 border-blue-500/30' },
@@ -37,34 +37,50 @@ function StatCard({ icon: Icon, label, value, color }) {
   );
 }
 
-export default function AdminPanel({ onBack }) {
+export default function AdminPanel({ onBack, signOut }) {
   const [leads, setLeads] = useState([]);
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
   const [expandedId, setExpandedId] = useState(null);
   const [notifEnabled, setNotifEnabled] = useState(false);
+  const noteTimers = useRef({});
 
-  const refresh = useCallback(() => setLeads(getLeads()), []);
+  const refresh = useCallback(async () => {
+    const data = await getLeads();
+    setLeads(data);
+  }, []);
 
   useEffect(() => {
     refresh();
     setNotifEnabled('Notification' in window && Notification.permission === 'granted');
-    const id = setInterval(refresh, 3000);
-    return () => clearInterval(id);
+
+    const unsub = subscribeToLeads(
+      () => refresh(),
+      (newLead) => {
+        if ('Notification' in window && Notification.permission === 'granted') {
+          new Notification('Новая заявка!', {
+            body: `${newLead.name} — ${newLead.phone}`,
+            icon: '/favicon.svg',
+          });
+        }
+      }
+    );
+    return unsub;
   }, [refresh]);
 
-  const handleStatus = (id, status) => {
-    updateLead(id, { status });
+  const handleStatus = async (id, status) => {
+    await updateLead(id, { status });
     refresh();
   };
 
   const handleNote = (id, note) => {
-    updateLead(id, { note });
-    refresh();
+    setLeads(prev => prev.map(l => l.id === id ? { ...l, note } : l));
+    clearTimeout(noteTimers.current[id]);
+    noteTimers.current[id] = setTimeout(() => updateLead(id, { note }), 400);
   };
 
-  const handleDelete = (id) => {
-    deleteLead(id);
+  const handleDelete = async (id) => {
+    await deleteLead(id);
     setExpandedId(null);
     refresh();
   };
@@ -121,6 +137,10 @@ export default function AdminPanel({ onBack }) {
             <button onClick={enableNotif} title={notifEnabled ? 'Уведомления включены' : 'Включить уведомления'}
               className={`w-9 h-9 rounded-lg border flex items-center justify-center transition-colors ${notifEnabled ? 'border-green-500/50 text-green-400' : 'border-anthracite-700/50 text-gray-400 hover:text-accent-400 hover:border-accent-500/50'}`}>
               {notifEnabled ? <Bell size={16} /> : <BellOff size={16} />}
+            </button>
+            <button onClick={signOut} title="Выйти"
+              className="w-9 h-9 rounded-lg border border-anthracite-700/50 flex items-center justify-center text-gray-400 hover:text-red-400 hover:border-red-500/50 transition-colors">
+              <LogOut size={16} />
             </button>
           </div>
         </div>

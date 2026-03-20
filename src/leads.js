@@ -1,44 +1,91 @@
-const KEY = 'remontpro_leads';
+import { supabase } from './supabaseClient';
 
-export function getLeads() {
-  try { return JSON.parse(localStorage.getItem(KEY) || '[]'); }
-  catch { return []; }
+/*
+  SQL для Supabase Dashboard (выполнить один раз):
+
+  CREATE TABLE leads (
+    id uuid DEFAULT gen_random_uuid() PRIMARY KEY,
+    name text NOT NULL,
+    phone text NOT NULL,
+    message text DEFAULT '',
+    status text NOT NULL DEFAULT 'new'
+      CHECK (status IN ('new','in_progress','done','rejected')),
+    note text DEFAULT '',
+    created_at timestamptz DEFAULT now() NOT NULL
+  );
+
+  ALTER TABLE leads ENABLE ROW LEVEL SECURITY;
+
+  -- Публичная форма: вставка без авторизации
+  CREATE POLICY "Anyone can insert leads"
+    ON leads FOR INSERT WITH CHECK (true);
+
+  -- Админ: чтение, обновление, удаление
+  CREATE POLICY "Auth users can select"
+    ON leads FOR SELECT USING (auth.role() = 'authenticated');
+  CREATE POLICY "Auth users can update"
+    ON leads FOR UPDATE USING (auth.role() = 'authenticated');
+  CREATE POLICY "Auth users can delete"
+    ON leads FOR DELETE USING (auth.role() = 'authenticated');
+
+  -- Включить real-time
+  ALTER PUBLICATION supabase_realtime ADD TABLE leads;
+*/
+
+function mapRow(row) {
+  return { ...row, createdAt: row.created_at };
 }
 
-export function saveLead(lead) {
-  const leads = getLeads();
-  const entry = {
-    id: Date.now().toString(36) + Math.random().toString(36).slice(2, 6),
-    ...lead,
-    status: 'new',
-    note: '',
-    createdAt: new Date().toISOString(),
-  };
-  leads.unshift(entry);
-  localStorage.setItem(KEY, JSON.stringify(leads));
+export async function getLeads() {
+  const { data, error } = await supabase
+    .from('leads')
+    .select('*')
+    .order('created_at', { ascending: false });
+  if (error) { console.error('getLeads:', error); return []; }
+  return data.map(mapRow);
+}
 
-  if (Notification.permission === 'granted') {
+export async function saveLead(lead) {
+  const { data, error } = await supabase
+    .from('leads')
+    .insert({ name: lead.name, phone: lead.phone, message: lead.message || '' })
+    .select()
+    .single();
+
+  if (error) { console.error('saveLead:', error); return null; }
+
+  if ('Notification' in window && Notification.permission === 'granted') {
     new Notification('Новая заявка!', {
       body: `${lead.name} — ${lead.phone}`,
       icon: '/favicon.svg',
     });
   }
 
-  return entry;
+  return mapRow(data);
 }
 
-export function updateLead(id, patch) {
-  const leads = getLeads();
-  const idx = leads.findIndex(l => l.id === id);
-  if (idx === -1) return;
-  leads[idx] = { ...leads[idx], ...patch };
-  localStorage.setItem(KEY, JSON.stringify(leads));
-  return leads[idx];
+export async function updateLead(id, patch) {
+  const { error } = await supabase.from('leads').update(patch).eq('id', id);
+  if (error) console.error('updateLead:', error);
 }
 
-export function deleteLead(id) {
-  const leads = getLeads().filter(l => l.id !== id);
-  localStorage.setItem(KEY, JSON.stringify(leads));
+export async function deleteLead(id) {
+  const { error } = await supabase.from('leads').delete().eq('id', id);
+  if (error) console.error('deleteLead:', error);
+}
+
+export function subscribeToLeads(onRefresh, onInsert) {
+  const channel = supabase
+    .channel('leads-realtime')
+    .on('postgres_changes', { event: 'INSERT', schema: 'public', table: 'leads' }, (payload) => {
+      if (onInsert) onInsert(payload.new);
+      onRefresh();
+    })
+    .on('postgres_changes', { event: 'UPDATE', schema: 'public', table: 'leads' }, () => onRefresh())
+    .on('postgres_changes', { event: 'DELETE', schema: 'public', table: 'leads' }, () => onRefresh())
+    .subscribe();
+
+  return () => supabase.removeChannel(channel);
 }
 
 export function requestNotifications() {

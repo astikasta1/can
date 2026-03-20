@@ -6,6 +6,8 @@ import {
   Star, Menu, X, Calculator, Lock
 } from 'lucide-react';
 import AdminPanel from './AdminPanel';
+import LoginPage from './LoginPage';
+import { useAuth } from './useAuth';
 import { saveLead, requestNotifications } from './leads';
 
 /* ── Intersection Observer hook ── */
@@ -99,8 +101,16 @@ export default function App() {
     return () => window.removeEventListener('hashchange', handler);
   }, []);
 
+  const { session, loading, signIn, signOut } = useAuth();
+
   if (page === '#admin') {
-    return <AdminPanel onBack={() => { window.location.hash = ''; }} />;
+    if (loading) return (
+      <div className="min-h-screen bg-anthracite-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+    if (!session) return <LoginPage onBack={() => { window.location.hash = ''; }} signIn={signIn} />;
+    return <AdminPanel onBack={() => { window.location.hash = ''; }} signOut={signOut} />;
   }
 
   /* request notification permission on mount */
@@ -123,9 +133,12 @@ export default function App() {
   /* contact form */
   const [form, setForm] = useState({ name: '', phone: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
-  const handleSubmit = (e) => {
+  const [sending, setSending] = useState(false);
+  const handleSubmit = async (e) => {
     e.preventDefault();
-    saveLead({ name: form.name, phone: form.phone, message: form.message });
+    setSending(true);
+    await saveLead({ name: form.name, phone: form.phone, message: form.message });
+    setSending(false);
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
     setForm({ name: '', phone: '', message: '' });
@@ -368,8 +381,8 @@ export default function App() {
               <textarea placeholder="Сообщение (необязательно)" value={form.message} rows={3}
                 onChange={e => setForm({ ...form, message: e.target.value })}
                 className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-5 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors resize-none" />
-              <button type="submit" className="w-full bg-accent-500 hover:bg-accent-600 text-white font-bold py-4 rounded-xl text-lg transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-accent-500/25 active:scale-95">
-                Оставить заявку
+              <button type="submit" disabled={sending} className="w-full bg-accent-500 hover:bg-accent-600 disabled:opacity-60 text-white font-bold py-4 rounded-xl text-lg transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-accent-500/25 active:scale-95">
+                {sending ? 'Отправка…' : 'Оставить заявку'}
               </button>
             </form>
           )}
