@@ -3,8 +3,10 @@ import {
   Hammer, Construction, Droplets, Zap, Wrench, ShieldCheck,
   Phone, Mail, MapPin, ChevronLeft, ChevronRight, CheckCircle2,
   ArrowRight, Clock, FileText, Handshake, HardHat, ClipboardCheck,
-  Star, Menu, X, Calculator
+  Star, Menu, X, Calculator, Lock
 } from 'lucide-react';
+import AdminPanel from './AdminPanel';
+import { saveLead, requestNotifications } from './leads';
 
 /* ── Intersection Observer hook ── */
 function useOnScreen() {
@@ -89,6 +91,21 @@ const stats = [
 /*             MAIN APP                */
 /* ════════════════════════════════════ */
 export default function App() {
+  /* hash routing */
+  const [page, setPage] = useState(window.location.hash);
+  useEffect(() => {
+    const handler = () => setPage(window.location.hash);
+    window.addEventListener('hashchange', handler);
+    return () => window.removeEventListener('hashchange', handler);
+  }, []);
+
+  if (page === '#admin') {
+    return <AdminPanel onBack={() => { window.location.hash = ''; }} />;
+  }
+
+  /* request notification permission on mount */
+  useEffect(() => { requestNotifications(); }, []);
+
   const [menuOpen, setMenuOpen] = useState(false);
 
   /* calculator */
@@ -104,13 +121,14 @@ export default function App() {
   useEffect(() => { const id = setInterval(next, 5000); return () => clearInterval(id); }, []);
 
   /* contact form */
-  const [form, setForm] = useState({ name: '', phone: '' });
+  const [form, setForm] = useState({ name: '', phone: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const handleSubmit = (e) => {
     e.preventDefault();
+    saveLead({ name: form.name, phone: form.phone, message: form.message });
     setSubmitted(true);
     setTimeout(() => setSubmitted(false), 4000);
-    setForm({ name: '', phone: '' });
+    setForm({ name: '', phone: '', message: '' });
   };
 
   const links = [
@@ -347,6 +365,9 @@ export default function App() {
               <input type="tel" required placeholder="Телефон" value={form.phone}
                 onChange={e => setForm({ ...form, phone: e.target.value })}
                 className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-5 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors" />
+              <textarea placeholder="Сообщение (необязательно)" value={form.message} rows={3}
+                onChange={e => setForm({ ...form, message: e.target.value })}
+                className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-5 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors resize-none" />
               <button type="submit" className="w-full bg-accent-500 hover:bg-accent-600 text-white font-bold py-4 rounded-xl text-lg transition-all hover:scale-[1.02] hover:shadow-lg hover:shadow-accent-500/25 active:scale-95">
                 Оставить заявку
               </button>
@@ -388,8 +409,11 @@ export default function App() {
             </div>
           </div>
         </div>
-        <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-anthracite-700/30 text-center text-gray-600 text-xs">
-          &copy; 2013–2026 РемонтПро. Все права защищены.
+        <div className="max-w-7xl mx-auto mt-10 pt-6 border-t border-anthracite-700/30 flex items-center justify-center gap-4 text-gray-600 text-xs">
+          <span>&copy; 2013–2026 РемонтПро. Все права защищены.</span>
+          <a href="#admin" className="inline-flex items-center gap-1 text-gray-600 hover:text-accent-400 transition-colors">
+            <Lock size={11} /> Админ
+          </a>
         </div>
       </footer>
     </div>
