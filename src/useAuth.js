@@ -2,20 +2,33 @@ import { useState, useEffect } from 'react';
 import { supabase } from './supabaseClient';
 
 export function useAuth() {
-  const [session, setSession] = useState(undefined); // undefined = loading
+  const [session, setSession] = useState(supabase ? undefined : null);
 
   useEffect(() => {
-    supabase.auth.getSession().then(({ data: { session } }) => setSession(session));
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_ev, session) => {
-      setSession(session);
-    });
-    return () => subscription.unsubscribe();
+    if (!supabase) return;
+
+    let subscription;
+    try {
+      supabase.auth.getSession().then(({ data }) => {
+        setSession(data?.session ?? null);
+      }).catch(() => setSession(null));
+
+      const { data } = supabase.auth.onAuthStateChange((_ev, session) => {
+        setSession(session);
+      });
+      subscription = data?.subscription;
+    } catch {
+      setSession(null);
+    }
+
+    return () => subscription?.unsubscribe();
   }, []);
 
   const signIn = (email, password) =>
-    supabase.auth.signInWithPassword({ email, password });
+    supabase ? supabase.auth.signInWithPassword({ email, password }) : Promise.reject(new Error('Supabase not configured'));
 
-  const signOut = () => supabase.auth.signOut();
+  const signOut = () =>
+    supabase ? supabase.auth.signOut() : Promise.resolve();
 
   return { session, loading: session === undefined, signIn, signOut };
 }

@@ -124,14 +124,20 @@ export default function App() {
   const [form, setForm] = useState({ name: '', phone: '', message: '' });
   const [submitted, setSubmitted] = useState(false);
   const [sending, setSending] = useState(false);
+  const [formError, setFormError] = useState(false);
   const handleSubmit = async (e) => {
     e.preventDefault();
+    setFormError(false);
     setSending(true);
-    await saveLead({ name: form.name, phone: form.phone, message: form.message });
+    const result = await saveLead({ name: form.name, phone: form.phone, message: form.message });
     setSending(false);
-    setSubmitted(true);
-    setTimeout(() => setSubmitted(false), 4000);
-    setForm({ name: '', phone: '', message: '' });
+    if (result) {
+      setSubmitted(true);
+      setTimeout(() => setSubmitted(false), 4000);
+      setForm({ name: '', phone: '', message: '' });
+    } else {
+      setFormError(true);
+    }
   };
 
   const links = [
@@ -373,6 +379,11 @@ export default function App() {
             </div>
           ) : (
             <form onSubmit={handleSubmit} className="bg-anthracite-900 border border-anthracite-700/50 rounded-2xl p-6 md:p-8 space-y-4">
+              {formError && (
+                <p className="text-red-400 text-sm bg-red-500/10 border border-red-500/20 rounded-xl px-4 py-3">
+                  Ошибка отправки. Попробуйте ещё раз.
+                </p>
+              )}
               <input type="text" required placeholder="Ваше имя" value={form.name}
                 onChange={e => setForm({ ...form, name: e.target.value })}
                 className="w-full bg-anthracite-800 border border-anthracite-700/50 rounded-xl px-5 py-3.5 text-white placeholder-gray-500 focus:outline-none focus:border-accent-500 transition-colors" />
