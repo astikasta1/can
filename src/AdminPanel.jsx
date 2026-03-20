@@ -46,26 +46,33 @@ export default function AdminPanel({ onBack, signOut }) {
   const noteTimers = useRef({});
 
   const refresh = useCallback(async () => {
-    const data = await getLeads();
-    setLeads(data);
+    try {
+      const data = await getLeads();
+      setLeads(data || []);
+    } catch (e) { console.error('refresh:', e); }
   }, []);
 
   useEffect(() => {
     refresh();
     setNotifEnabled('Notification' in window && Notification.permission === 'granted');
 
-    const unsub = subscribeToLeads(
-      () => refresh(),
-      (newLead) => {
-        if ('Notification' in window && Notification.permission === 'granted') {
-          new Notification('Новая заявка!', {
-            body: `${newLead.name} — ${newLead.phone}`,
-            icon: '/favicon.svg',
-          });
+    let unsub;
+    try {
+      unsub = subscribeToLeads(
+        () => refresh(),
+        (newLead) => {
+          try {
+            if ('Notification' in window && Notification.permission === 'granted') {
+              new Notification('Новая заявка!', {
+                body: `${newLead?.name} — ${newLead?.phone}`,
+                icon: '/favicon.svg',
+              });
+            }
+          } catch { /* ignore */ }
         }
-      }
-    );
-    return unsub;
+      );
+    } catch (e) { console.error('subscribeToLeads:', e); }
+    return () => { if (typeof unsub === 'function') unsub(); };
   }, [refresh]);
 
   const handleStatus = async (id, status) => {
