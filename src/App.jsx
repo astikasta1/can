@@ -1,10 +1,31 @@
-import { useState, useEffect, useRef } from 'react';
+import { useState, useEffect, useRef, Component } from 'react';
 import {
   Hammer, Construction, Droplets, Zap, Wrench, ShieldCheck,
   Phone, Mail, MapPin, ChevronLeft, ChevronRight, CheckCircle2,
   ArrowRight, Clock, FileText, Handshake, HardHat, ClipboardCheck,
   Star, Menu, X, Calculator, Lock
 } from 'lucide-react';
+/* ── Error Boundary ── */
+class AdminErrorBoundary extends Component {
+  constructor(props) { super(props); this.state = { error: null }; }
+  static getDerivedStateFromError(error) { return { error }; }
+  render() {
+    if (this.state.error) return (
+      <div className="min-h-screen bg-anthracite-950 flex items-center justify-center px-4">
+        <div className="bg-anthracite-900 border border-red-500/30 rounded-2xl p-8 max-w-lg w-full text-center">
+          <p className="text-red-400 font-bold text-lg mb-2">Ошибка загрузки админки</p>
+          <p className="text-gray-400 text-sm mb-4 font-mono break-all">{this.state.error?.message}</p>
+          <button onClick={() => this.setState({ error: null })}
+            className="px-4 py-2 bg-accent-500 hover:bg-accent-600 text-white rounded-xl text-sm font-semibold transition-colors">
+            Попробовать снова
+          </button>
+        </div>
+      </div>
+    );
+    return this.props.children;
+  }
+}
+
 import AdminPanel from './AdminPanel';
 import LoginPage from './LoginPage';
 import { useAuth } from './useAuth';
@@ -153,7 +174,7 @@ export default function App() {
       </div>
     );
     if (!session) return <LoginPage onBack={() => { window.location.hash = ''; }} signIn={signIn} />;
-    return <AdminPanel onBack={() => { window.location.hash = ''; }} signOut={signOut} />;
+    return <AdminErrorBoundary><AdminPanel onBack={() => { window.location.hash = ''; }} signOut={signOut} /></AdminErrorBoundary>;
   }
 
   return (
