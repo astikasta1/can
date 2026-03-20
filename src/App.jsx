@@ -103,16 +103,6 @@ export default function App() {
 
   const { session, loading, signIn, signOut } = useAuth();
 
-  if (page === '#admin') {
-    if (loading) return (
-      <div className="min-h-screen bg-anthracite-950 flex items-center justify-center">
-        <div className="w-8 h-8 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
-      </div>
-    );
-    if (!session) return <LoginPage onBack={() => { window.location.hash = ''; }} signIn={signIn} />;
-    return <AdminPanel onBack={() => { window.location.hash = ''; }} signOut={signOut} />;
-  }
-
   /* request notification permission on mount */
   useEffect(() => { requestNotifications(); }, []);
 
@@ -148,6 +138,17 @@ export default function App() {
     ['Услуги', '#services'], ['Калькулятор', '#calc'], ['Почему мы', '#why'],
     ['Этапы', '#steps'], ['Отзывы', '#reviews'], ['Контакты', '#contact'],
   ];
+
+  /* admin route */
+  if (page === '#admin') {
+    if (loading) return (
+      <div className="min-h-screen bg-anthracite-950 flex items-center justify-center">
+        <div className="w-8 h-8 border-2 border-accent-500 border-t-transparent rounded-full animate-spin" />
+      </div>
+    );
+    if (!session) return <LoginPage onBack={() => { window.location.hash = ''; }} signIn={signIn} />;
+    return <AdminPanel onBack={() => { window.location.hash = ''; }} signOut={signOut} />;
+  }
 
   return (
     <div className="min-h-screen bg-anthracite-950 text-gray-200 font-sans overflow-x-hidden">
