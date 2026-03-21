@@ -11,9 +11,17 @@ export default function LoginPage({ onBack, signIn }) {
     e.preventDefault();
     setError('');
     setLoading(true);
-    const { error } = await signIn(email, password);
-    setLoading(false);
-    if (error) setError('Неверный email или пароль');
+    try {
+      const result = await Promise.race([
+        signIn(email, password),
+        new Promise((_, reject) => setTimeout(() => reject(new Error('timeout')), 15000)),
+      ]);
+      if (result?.error) setError(result.error.message || 'Неверный email или пароль');
+    } catch (err) {
+      setError(err.message === 'timeout' ? 'Сервер не отвечает. Проверьте подключение.' : 'Ошибка входа: ' + err.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
