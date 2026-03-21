@@ -14,6 +14,7 @@ const STATUS = {
 };
 
 const ADMIN_SESSION_KEY = 'remontpro_admin_session';
+let adminSessionFallback = false;
 
 function Badge({ status }) {
   const s = STATUS[status] || STATUS.new;
@@ -42,6 +43,8 @@ function StatCard({ icon, label, value, color }) {
 }
 
 function hasAdminSession() {
+  if (adminSessionFallback) return true;
+
   try {
     return Boolean(localStorage.getItem(ADMIN_SESSION_KEY));
   } catch {
@@ -50,14 +53,27 @@ function hasAdminSession() {
 }
 
 function saveAdminSession(login) {
-  localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ login, createdAt: new Date().toISOString() }));
+  adminSessionFallback = true;
+
+  try {
+    localStorage.setItem(ADMIN_SESSION_KEY, JSON.stringify({ login, createdAt: new Date().toISOString() }));
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function clearAdminSession() {
-  localStorage.removeItem(ADMIN_SESSION_KEY);
+  adminSessionFallback = false;
+
+  try {
+    localStorage.removeItem(ADMIN_SESSION_KEY);
+  } catch {
+    // ignore storage cleanup errors in restricted environments
+  }
 }
 
-function AdminLogin({ credentials, error, onChange, onSubmit, onBack }) {
+function AdminLogin({ credentials, error, hint, onChange, onSubmit, onBack }) {
   return (
     <div className="min-h-screen bg-anthracite-950 text-gray-200 px-4 py-10">
       <div className="max-w-md mx-auto">
@@ -109,6 +125,12 @@ function AdminLogin({ credentials, error, onChange, onSubmit, onBack }) {
               </div>
             )}
 
+            {hint && (
+              <div className="rounded-xl border border-blue-500/30 bg-blue-500/10 px-4 py-3 text-sm text-blue-200">
+                {hint}
+              </div>
+            )}
+
             <button type="submit" className="w-full inline-flex items-center justify-center gap-2 bg-accent-500 hover:bg-accent-600 text-white font-bold py-3.5 rounded-xl transition-colors">
               <Lock size={18} /> Войти
             </button>
@@ -123,6 +145,7 @@ export default function AdminPanel({ onBack }) {
   const [isAuthorized, setIsAuthorized] = useState(() => hasAdminSession());
   const [credentials, setCredentials] = useState({ login: '', password: '' });
   const [authError, setAuthError] = useState('');
+  const [authHint, setAuthHint] = useState('');
   const [leads, setLeads] = useState(() => getLeads());
   const [search, setSearch] = useState('');
   const [filterStatus, setFilterStatus] = useState('all');
@@ -140,6 +163,7 @@ export default function AdminPanel({ onBack }) {
 
   const handleCredentials = (field, value) => {
     setAuthError('');
+    setAuthHint('');
     setCredentials(prev => ({ ...prev, [field]: value }));
   };
 
@@ -159,9 +183,10 @@ export default function AdminPanel({ onBack }) {
       return;
     }
 
-    saveAdminSession(login);
+    const persisted = saveAdminSession(login);
     setIsAuthorized(true);
     setAuthError('');
+    setAuthHint(persisted ? '' : 'Вход выполнен, но браузер запретил сохранение сессии. После закрытия вкладки потребуется войти снова.');
     setCredentials({ login: '', password: '' });
   };
 
@@ -172,6 +197,7 @@ export default function AdminPanel({ onBack }) {
     setSearch('');
     setFilterStatus('all');
     setCredentials({ login: '', password: '' });
+    setAuthHint('');
   };
 
   const handleStatus = (id, status) => {
@@ -232,6 +258,7 @@ export default function AdminPanel({ onBack }) {
       <AdminLogin
         credentials={credentials}
         error={authError}
+        hint={authHint}
         onChange={handleCredentials}
         onSubmit={handleLogin}
         onBack={onBack}
